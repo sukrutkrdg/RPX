@@ -1,0 +1,23 @@
+// config/settings.json
+{
+    // --- Blockchain Ayarları ---
+    "targetChainId": 8453, // Örn: Base Mainnet ID (Test ağları için değiştirilir)
+    "baseFeeEth": "0.02", // Başlangıç Talep Ücreti (ETH veya Native Token Cinsinden)
+    "minScoreForVerification": 70, // Onay için gereken minimum İtibar Puanı (70/100)
+    
+    // --- Kanıt Puanlama Ağırlıkları (Toplam 100 olmalı) ---
+    "proofWeights": {
+        "recoveryTransfer": 40,  // Kurtarma Transferi (Ana Kanıt)
+        "transactionConsistency": 30, // İşlem Sıklığı/Büyüklüğü Tutarlılığı
+        "walletAge": 10,             // Cüzdanın Zincir Üstü Yaşı
+        "protocolInteractions": 20   // Etkileşim Kurulan DeFi/NFT Protokolleri Sayısı
+        // Toplam: 40 + 30 + 10 + 20 = 100
+    },
+
+    // --- Güvenlik ve Zaman Ayarları ---
+    "oldWalletInactivityPeriodHours": 72, // Talep sonrası eski cüzdanda işlem yapılmaması gereken süre (72 saat)
+    "recoveryTransferMaxTimeHours": 48, // Çalma olayından sonra kurtarma işleminin maksimum süresi
+    
+    // --- API Limitleri ---
+    "maxTransactionsToFetch": 5000 // Geçmiş analizi için çekilecek max işlem sayısı
+}

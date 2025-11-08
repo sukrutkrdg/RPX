@@ -1,0 +1,19 @@
+// config/contractAddresses.json
+
+{
+    "targetChainId": 8453, // Başlangıç hedefimiz Base Mainnet ID'si
+    
+    "ReputationNFT": {
+        "address": "0x4A6bC...[NFT SÖZLEŞMESİNİN DAĞITILDIĞI ADRES]",
+        "deployedBlock": 1234567 // Event dinleme başlangıcı için
+    },
+    
+    "ReputationBridge": {
+        "address": "0x5BeDc...[BRIDGE SÖZLEŞMESİNİN DAĞITILDIĞI ADRES]",
+        "deployedBlock": 1234568
+    },
+    
+    "FeeReceiver": {
+        "address": "0x1AbC...[ÜCRETLERİN TOPLANDIĞI CÜZDAN ADRESİ]"
+    }
+}
