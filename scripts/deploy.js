@@ -1,18 +1,19 @@
 // scripts/deploy.js
 
-// Hardhat'tan ethers modülünü alıyoruz
-const { ethers } = require("hardhat");
+import { ethers } from "hardhat";
 
 async function main() {
     // Dağıtım için gerekli parametreler (config/settings.json dosyasından gelmeli)
     const FEE_RECEIVER = "0x...fee_receiver_address..."; // Ücretlerin gideceği cüzdan
+    // ethers.parseEther yerine ethers.utils.parseEther kullanılıyorsa, import'u düzenlememiz gerekir.
+    // Ancak Hardhat'ın güncel versiyonlarında doğrudan parseEther fonksiyonunu kullanabiliriz.
     const BASE_FEE_WEI = ethers.parseEther("0.02"); // 0.02 ETH Base Ücret
 
     console.log("--- REP-X Sözleşme Dağıtım Başlatılıyor (Hedef Ağ: BASE/EVM) ---");
 
     // 1. ReputationNFT.sol'i Dağıtma
     const ReputationNFT = await ethers.getContractFactory("ReputationNFT");
-    const repNFT = await ReputationNFT.deploy();
+    const repNFT = await repNFT.deploy();
     await repNFT.waitForDeployment();
     
     const repNFTAddress = await repNFT.getAddress();
@@ -20,7 +21,7 @@ async function main() {
 
     // 2. ReputationBridge.sol'i Dağıtma
     const ReputationBridge = await ethers.getContractFactory("ReputationBridge");
-    const repBridge = await ReputationBridge.deploy(
+    const repBridge = await repBridge.deploy(
         repNFTAddress, 
         FEE_RECEIVER, 
         BASE_FEE_WEI
@@ -37,8 +38,7 @@ async function main() {
     await tx.wait();
     console.log("✅ Bağlantı Kuruldu! NFT artık sadece Bridge'in basmasına izin veriyor.");
 
-    // 4. Konfigürasyon Dosyasını Güncelleme
-    // Bu adımda, dağıtılan adresleri config/contractAddresses.json dosyasına otomatik olarak kaydetmeliyiz.
+    // 4. Konfigürasyon Dosyasını Güncelleme (Bu adım otomatik yapılmalıdır)
 
     console.log("--- Dağıtım Başarılı. REP-X Protokol Çekirdeği Hazır. ---");
 }

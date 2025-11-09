@@ -1,13 +1,18 @@
 // scripts/setup.js
 
-const { ethers } = require("hardhat");
-require('dotenv').config(); 
-const contractAddresses = require('../config/contractAddresses.json');
-const settings = require('../config/settings.json');
+import { ethers } from "hardhat";
+import 'dotenv/config'; 
+// JSON importları için Node.js'in 'assert' mekanizmasını kullanıyoruz
+import contractAddresses from '../config/contractAddresses.json' assert { type: "json" };
+import settings from '../config/settings.json' assert { type: "json" };
+
 
 async function main() {
     // 1. Oracle Cüzdanını Tanımlama
+    // ethers.js'ten JsonRpcProvider yerine Hardhat'ın provider'ı kullanılmalı, 
+    // ancak .env kullanıldığı için manuel tanımlama yapıyoruz.
     const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
+    
     // Dağıtımı yapan cüzdanın özel anahtarını kullanıyoruz (Owner)
     const ownerWallet = new ethers.Wallet(process.env.DEPLOYER_PRIVATE_KEY, provider); 
     
@@ -28,7 +33,7 @@ async function main() {
 
     // 3. Oracle Adresini Atama (Owner yetkisiyle)
     // Constructor'da atama yapılmadıysa veya değiştirilecekse bu kullanılır
-    if (bridgeContract.oracleAddress() !== oracleAddress) {
+    if (await bridgeContract.oracleAddress() !== oracleAddress) { // await eklendi
         console.log("🛠️ Bridge sözleşmesinde Oracle adresi güncelleniyor...");
         const tx = await bridgeContract.setOracleAddress(oracleAddress);
         await tx.wait();
@@ -38,11 +43,9 @@ async function main() {
     }
     
     // 4. (Opsiyonel) Başarı Ücretini Tanımlama
+    // parseEther'ın kullanımı ethers kütüphanesine bağlıdır, Hardhat'ın global util'inden gelmez.
     const SUCCESS_FEE_WEI = ethers.parseEther(settings.settings.successFeeEth || "0.05"); // Örn: 0.05 ETH
-    // successFee'yi Bridge sözleşmesinde bir fonksiyon ile set etme
     // Not: setSuccessFee fonksiyonunu ReputationBridge.sol'e eklememiz gerekir.
-    // const txFee = await bridgeContract.setSuccessFee(SUCCESS_FEE_WEI); 
-    // await txFee.wait();
     
     console.log("--- Kurulum Tamamlandı. Protokol Aktif. ---");
 }
