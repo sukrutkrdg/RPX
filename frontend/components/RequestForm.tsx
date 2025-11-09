@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { parseEther } from 'viem'; 
-// Sözleşme adresleri ve ABI'lar config/contractAddresses.json'dan çekilmelidir
+// Sözleşme adresleri ve ABI'lar config/contbbbbbbbbbbbractAddresses.json'dan çekilmelidir
 import settings from '../../config/settings.json'; 
 import { BRIDGE_ABI } from '../../config/abis'; // Örnek ABI
 
