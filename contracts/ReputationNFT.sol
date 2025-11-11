@@ -1,61 +1,68 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 
 contract ReputationNFT is ERC721, Ownable {
-    uint256 private _nextTokenId;
-    address public bridgeAddress;
+    address public bridgeContractAddress;
 
-    mapping(uint256 => uint256) public tokenScores;
-    mapping(uint256 => address) public tokenOldAddress;
+    struct ReputationData {
+        address oldAddress;
+        uint256 score;
+    }
 
-    event Minted(address indexed to, uint256 indexed tokenId, uint256 score);
+    mapping(uint256 => ReputationData) public reputationDatas;
+    uint256 private _nextTokenId = 1;
 
-    // Constructor: `initialOwner` alacak şekilde düzeltildi
-    constructor(address initialOwner)
-        ERC721("Reputation Proof of Experience", "RPX")
-        Ownable(initialOwner)
+    // ----- DÜZELTME 1: Constructor -----
+    // Deploy script'inin (deployer.address) argümanını kabul etmesi için 'initialOwner' eklendi.
+    constructor(address initialOwner) 
+        ERC721("Reputation Bridge NFT", "REP-X") 
+        Ownable(initialOwner) // Sahibi 'initialOwner' (yani deployer) olarak ayarla
     {
-        bridgeAddress = initialOwner;
+        // Bridge adresini de başlangıçta sahip olarak ata
+        bridgeContractAddress = initialOwner;
     }
 
     modifier onlyBridge() {
-        require(msg.sender == bridgeAddress, "Only the bridge can mint");
+        require(msg.sender == bridgeContractAddress, "Yalnizca Bridge sozlesmesi basim yapabilir.");
         _;
     }
 
-    function setBridgeAddress(address _newBridgeAddress) public onlyOwner {
-        bridgeAddress = _newBridgeAddress;
+    function setBridgeContract(address _bridgeAddress) external onlyOwner {
+        require(_bridgeAddress != address(0), "Gecersiz adres.");
+        bridgeContractAddress = _bridgeAddress;
     }
 
-    function mintNFT(address to, address oldAddress, uint256 score) public onlyBridge returns (uint256) {
-        uint256 tokenId = _nextTokenId++;
-        _safeMint(to, tokenId);
-        
-        tokenScores[tokenId] = score;
-        tokenOldAddress[tokenId] = oldAddress;
+    function mintNFT(
+        address recipient,
+        address _oldAddress,
+        uint256 _score
+    ) external onlyBridge returns (uint256) {
+        uint256 newItemId = _nextTokenId;
 
-        emit Minted(to, tokenId, score);
-        return tokenId;
+        reputationDatas[newItemId] = ReputationData({
+            oldAddress: _oldAddress,
+            score: _score
+        });
+
+        _safeMint(recipient, newItemId);
+        _nextTokenId++;
+
+        return newItemId;
     }
 
-    // _exists fonksiyonunu içeren doğru tokenURI fonksiyonu
+    function getReputationScore(uint256 tokenId) external view returns (uint256) {
+        require(ownerOf(tokenId) != address(0), "Token mevcut degil.");
+        return reputationDatas[tokenId].score;
+    }
+
+    // ----- DÜZELTME 2: tokenURI -----
+    // Hata veren '_exists' yerine 'ownerOf' kullanıldı.
     function tokenURI(uint256 tokenId) public view override returns (string memory) {
-        require(_exists(tokenId), "ERC721Metadata: URI query for nonexistent token");
-
-        uint256 score = tokenScores[tokenId];
-        string memory scoreStr = Strings.toString(score);
-        address oldAddr = tokenOldAddress[tokenId];
-
-        return string(abi.encodePacked(
-            "data:application/json;charset=utf-8,{\"name\":\"RPX Score NFT\", \"description\":\"Reputation Proof of Experience NFT verifying a link and score.\", \"score\":",
-            scoreStr,
-            ", \"linked_from_address\":\"",
-            Strings.toHexString(uint160(oldAddr), 20),
-            "\"}"
-        ));
+        require(ownerOf(tokenId) != address(0), "Token mevcut degil.");
+        return string(abi.encodePacked("https://metadata.rep-x.io/token/", Strings.toString(tokenId)));
     }
 }
