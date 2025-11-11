@@ -1,90 +1,130 @@
-// frontend/components/RequestForm.tsx
+"use client";
 
 import React, { useState } from 'react';
 import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
-import { parseEther } from 'viem'; 
-// Sözleşme adresleri ve ABI'lar config/contbbbbbbbbbbbractAddresses.json'dan çekilmelidir
-import settings from '../../config/settings.json'; 
-import { BRIDGE_ABI } from '../../config/abis'; // Örnek ABI
+import { parseEther, stringToBytes, bytesToHex } from 'viem';
 
-const BRIDGE_ADDRESS = settings.contractAddresses.ReputationBridge;
-const BASE_FEE = parseEther(settings.settings.baseFeeEth); // 0.02 ETH viem formatında
+// --- DÜZELTME 1: Gerekli dosyalar doğru import edildi ---
+import settings from '../../config/settings.json';
+import contractAddresses from '../../config/contractAddresses.json';
+// ABI'yi boş 'abis.js' yerine derlenmiş artifact'tan al
+import ReputationBridgeArtifact from '../../artifacts/contracts/ReputationBridge.sol/ReputationBridge.json';
+
+// --- DÜZELTME 2: Adres, ABI ve Ücret doğru okundu ---
+const BRIDGE_ABI = ReputationBridgeArtifact.abi;
+// Not: Ağı 'baseSepolia' olarak sabit kodluyoruz, çünkü deploy betiğimiz oraya kaydetti
+const BRIDGE_ADDRESS = (contractAddresses as any).baseSepolia.ReputationBridge as `0x${string}`;
+const BASE_FEE = parseEther(settings.baseFeeEth); // 'settings.settings' hatası düzeltildi
 
 export const RequestForm = () => {
-    const { address: newAddress, isConnected } = useAccount();
+    const { address: connectedAddress, isConnected } = useAccount();
     const [oldAddress, setOldAddress] = useState('');
-    const [proofHash, setProofHash] = useState('');
+    const [statusMessage, setStatusMessage] = useState('');
     
-    // Wagmi hook'u ile sözleşmeye yazma işlemini hazırla
+    // Wagmi hook'ları
     const { data: hash, isPending, writeContract } = useWriteContract();
     
-    // İşlem onayını bekle
+    // İşlem onayı (receipt) bekleme
     const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
 
-    const handleSubmit = (e: React.FormEvent) => {
+    // Talep gönderme fonksiyonu
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!isConnected || !oldAddress || !proofHash || !newAddress) return;
+        if (!isConnected || !connectedAddress) {
+            setStatusMessage("Lütfen önce cüzdanınızı (yeni adresiniz olarak) bağlayın.");
+            return;
+        }
+        if (!oldAddress || !ethers.isAddress(oldAddress)) {
+            setStatusMessage("Lütfen geçerli bir 'Eski Cüzdan Adresi' girin.");
+            return;
+        }
 
-        // requestLink işlemini tetikle
-        writeContract({
-            address: BRIDGE_ADDRESS as `0x${string}`,
-            abi: BRIDGE_ABI,
-            functionName: 'requestLink',
-            args: [oldAddress, proofHash],
-            value: BASE_FEE, // BaseFee (0.02 ETH) ile birlikte gönder
-        });
+        setStatusMessage("Talep hazırlanıyor...");
+
+        // 1. Kanıt (Proof) oluştur (Şimdilik basit bir string)
+        const proofMessage = `Link ${oldAddress} to ${connectedAddress}`;
+        const proofHash = bytesToHex(stringToBytes(proofMessage, { size: 32 }));
+
+        // 2. Kontratı Çağır (requestLink)
+        try {
+            writeContract({
+                address: BRIDGE_ADDRESS,
+                abi: BRIDGE_ABI,
+                functionName: 'requestLink',
+                args: [oldAddress, proofHash],
+                value: BASE_FEE,
+            });
+            setStatusMessage("Lütfen cüzdanınızdan işlemi onaylayın...");
+        } catch (error) {
+            console.error("Kontrat çağrısı hatası:", error);
+            setStatusMessage(`Hata: ${(error as Error).message}`);
+        }
     };
 
-    if (!isConnected) return <p className="text-gray-500">Lütfen başlamak için cüzdanınızı bağlayın.</p>;
-
     return (
-        <div className="max-w-md mx-auto bg-white p-6 rounded-xl shadow-lg">
-            <h2 className="text-2xl font-bold mb-4">🔗 İtibar Bağlama Talebi</h2>
-            <p className="mb-4 text-sm text-gray-600">
-                **Ücret:** {settings.settings.baseFeeEth} ETH (Başlangıç Talep Ücreti)
-            </p>
-
+        <div style={{ padding: '20px', maxWidth: '500px', margin: 'auto' }}>
+            <h2>İtibar Transferi (RPX) Talebi</h2>
+            <p>Bu form, eski cüzdanınızdaki itibarı yeni cüzdanınıza (şu an bağlı olan) bağlamak için kullanılır.</p>
+            
             <form onSubmit={handleSubmit}>
-                <div className="mb-4">
-                    <label className="block text-gray-700 text-sm font-bold mb-2">
-                        Ele Geçirilen Cüzdan Adresi (Eski Adres)
+                <div style={{ marginBottom: '15px' }}>
+                    <label>
+                        Eski Cüzdan Adresi (İtibarını aktarmak istediğiniz):
+                        <input
+                            type="text"
+                            value={oldAddress}
+                            onChange={(e) => setOldAddress(e.target.value)}
+                            placeholder="0x..."
+                            style={{ width: '100%', padding: '8px', marginTop: '5px' }}
+                            disabled={isPending || isConfirming}
+                        />
                     </label>
-                    <input 
-                        type="text" 
-                        value={oldAddress}
-                        onChange={(e) => setOldAddress(e.target.value)}
-                        className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700"
-                        placeholder="0x..."
-                        required
-                    />
                 </div>
-
-                <div className="mb-6">
-                    <label className="block text-gray-700 text-sm font-bold mb-2">
-                        Kurtarma Transferi İşlemi Hash'i (Kanıt)
+                
+                <div style={{ marginBottom: '15px' }}>
+                    <label>
+                        Yeni Cüzdan Adresi (Mevcut bağlı olan):
+                        <input
+                            type="text"
+                            value={connectedAddress || 'Cüzdan bağlı değil'}
+                            readOnly
+                            disabled
+                            style={{ width: '100%', padding: '8px', marginTop: '5px' }}
+                        />
                     </label>
-                    <input 
-                        type="text" 
-                        value={proofHash}
-                        onChange={(e) => setProofHash(e.target.value)}
-                        className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700"
-                        placeholder="0x..."
-                        required
-                    />
-                    <p className="text-xs text-gray-500 mt-1">Bu, fonlarınızı yeni cüzdanınıza çektiğiniz işlemin hash'i olmalıdır.</p>
                 </div>
                 
                 <button 
-                    type="submit"
-                    disabled={isPending || isConfirming}
-                    className={`w-full text-white font-bold py-2 px-4 rounded ${isPending || isConfirming ? 'bg-gray-400' : 'bg-green-600 hover:bg-green-700'}`}
+                    type="submit" 
+                    disabled={!isConnected || isPending || isConfirming}
+                    style={{ padding: '10px 15px', cursor: 'pointer' }}
                 >
-                    {isPending ? 'Cüzdan Onayı Bekleniyor...' : isConfirming ? 'İşlem Onaylanıyor...' : 'Talebi Başlat ve Ücreti Öde'}
+                    {isPending ? 'İşlem Gönderiliyor...' : 
+                     isConfirming ? 'Onay Bekleniyor...' : 
+                     `Talep Gönder (${settings.baseFeeEth} ETH)`}
                 </button>
             </form>
+
+            {statusMessage && <p><strong>Durum:</strong> {statusMessage}</p>}
             
-            {hash && <p className="mt-4 text-sm text-blue-600">İşlem Hash'i: {hash}</p>}
-            {isConfirmed && <p className="mt-4 text-lg font-bold text-green-600">🎉 Talep Başarıyla Gönderildi! Doğrulama sürecini takibe başlayabilirsiniz.</p>}
+            {isConfirmed && (
+                <div style={{ marginTop: '20px', color: 'green' }}>
+                    <p><strong>Talep Başarılı!</strong></p>
+                    <p>İşleminiz onaylandı (Tx: {hash}).</p>
+                    <p>Backend Oracle şimdi puanınızı hesaplayacak ve (eğer başarılıysa) NFT'nizi basacaktır.</p>
+                    <a href={`https://sepolia.basescan.org/tx/${hash}`} target="_blank" rel="noopener noreferrer">İşlemi Görüntüle</a>
+                </div>
+            )}
         </div>
     );
+};
+
+// Ethers.js'in 'isAddress' fonksiyonu React'te çalışmayabilir,
+// viem'in 'isAddress' fonksiyonunu kullanmak daha iyidir ancak şu an import edilmemiş.
+// Geçici bir 'ethers' objesi (gerçekte 'ethers' paketi import edilmedi, bu bir TypeScript sorunu)
+// Bu satırı geçici olarak ekliyoruz:
+const ethers = {
+    isAddress: (address: string) => {
+        return /^0x[a-fA-F0-9]{40}$/.test(address);
+    }
 };

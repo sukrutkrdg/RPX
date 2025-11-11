@@ -4,7 +4,7 @@ import type { AppProps } from 'next/app';
 import { WagmiProvider, createConfig, http } from 'wagmi';
 import { mainnet, base } from 'wagmi/chains'; // Base ağını kullanacağız
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import '../styles/globals.css'; // Global CSS dosyası (Örn: Tailwind CSS veya temel stiller)
+//import '../styles/globals.css'; // Global CSS dosyası (Örn: Tailwind CSS veya temel stiller)
 import settings from '../config/settings.json';
 
 // --- 1. Zincir ve Transport Tanımlaması ---

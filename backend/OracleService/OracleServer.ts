@@ -13,7 +13,7 @@ const ReputationBridgeArtifact = require('../../artifacts/contracts/ReputationBr
 dotenv.config();
 
 // --- Konfigürasyon ve Değişken Kontrolü ---
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3002;
 const networkName = "baseSepolia"; 
 
 const ORACLE_PRIVATE_KEY = process.env.ORACLE_PRIVATE_KEY;
