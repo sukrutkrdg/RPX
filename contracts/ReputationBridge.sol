@@ -30,7 +30,8 @@ contract ReputationBridge is Ownable {
     event LinkVerified(address indexed oldAddress, address indexed newAddress, uint256 finalScore);
 
     // Constructor: İlk kurulumda temel ayarları yapar
-    constructor(address _nftContractAddress, address _feeReceiver, uint256 _baseFee) {
+    // ----- DÜZELTME BURADA YAPILDI -----
+    constructor(address _nftContractAddress, address _feeReceiver, uint256 _baseFee) Ownable(msg.sender) {
         nftContract = ReputationNFT(_nftContractAddress);
         feeReceiver = _feeReceiver;
         baseFee = _baseFee;
