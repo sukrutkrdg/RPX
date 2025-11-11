@@ -1,57 +1,103 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
-import { parseEther, stringToBytes, bytesToHex } from 'viem';
+// --- DÜZELTME 2 (HASHLEME): Gerekli viem fonksiyonları import edildi ---
+import { parseEther, keccak256, stringToBytes, isAddress } from 'viem'; 
 
-// --- DÜZELTME 1: Gerekli dosyalar doğru import edildi ---
+// --- DÜZELTME 1 (IMPORTS): Dosyalar doğru import edildi ---
 import settings from '../../config/settings.json';
 import contractAddresses from '../../config/contractAddresses.json';
 // ABI'yi boş 'abis.js' yerine derlenmiş artifact'tan al
 import ReputationBridgeArtifact from '../../artifacts/contracts/ReputationBridge.sol/ReputationBridge.json';
 
-// --- DÜZELTME 2: Adres, ABI ve Ücret doğru okundu ---
+// --- DÜZELTME 1 (DEĞİŞKENLER): Adres, ABI ve Ücret doğru okundu ---
 const BRIDGE_ABI = ReputationBridgeArtifact.abi;
-// Not: Ağı 'baseSepolia' olarak sabit kodluyoruz, çünkü deploy betiğimiz oraya kaydetti
-const BRIDGE_ADDRESS = (contractAddresses as any).baseSepolia.ReputationBridge as `0x${string}`;
-const BASE_FEE = parseEther(settings.baseFeeEth); // 'settings.settings' hatası düzeltildi
+const networkName = "baseSepolia"; // Hardhat config ile aynı
+    
+// Adreslerin deploy edildiği ağı (baseSepolia) seçiyoruz
+const BRIDGE_ADDRESS = (contractAddresses as any)[networkName]?.ReputationBridge as `0x${string}`;
+    
+// 'settings.settings.baseFeeEth' hatası düzeltildi
+const BASE_FEE = parseEther(settings.baseFeeEth); 
+    
+// Oracle API URL'ini settings.json'dan al
+const ORACLE_API_URL = settings.oracleApiUrl || "http://localhost:3001";
 
 export const RequestForm = () => {
     const { address: connectedAddress, isConnected } = useAccount();
     const [oldAddress, setOldAddress] = useState('');
     const [statusMessage, setStatusMessage] = useState('');
-    
-    // Wagmi hook'ları
+        
     const { data: hash, isPending, writeContract } = useWriteContract();
-    
-    // İşlem onayı (receipt) bekleme
-    const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
+    // 'receipt' eklendi
+    const { isLoading: isConfirming, isSuccess: isConfirmed, data: receipt } = useWaitForTransactionReceipt({ hash });
 
-    // Talep gönderme fonksiyonu
+    // --- DÜZELTME 3 (API ÇAĞRISI): Tx onaylandığında Oracle'ı tetikle ---
+    useEffect(() => {
+        // Sadece işlem başarıyla onaylandığında çalış
+        if (isConfirmed && receipt && connectedAddress && oldAddress) {
+                
+            console.log("İşlem onaylandı:", receipt);
+            setStatusMessage("İşlem onaylandı. Skor hesaplanması için Oracle'a istek gönderiliyor...");
+
+            // 1. Kanıtı (proofHash) yeniden oluştur (kontrata gönderilenle aynı olmalı)
+            const proofMessage = `Link ${oldAddress} to ${connectedAddress}`;
+            const proofHash = keccak256(stringToBytes(proofMessage));
+
+            // 2. Oracle backend'ine API isteği gönder
+            fetch(`${ORACLE_API_URL}/request-score`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    oldAddress: oldAddress,
+                    newAddress: connectedAddress,
+                    proofHash: proofHash // Hash'i gönder
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.error) {
+                     throw new Error(data.error);
+                }
+                console.log("Oracle yanıtı:", data);
+                // OracleServer'dan gelen 'resultMessage' veya 'serverMessage'ı göster
+                setStatusMessage(`Oracle Yanıtı: ${data.resultMessage || data.serverMessage}`);
+            })
+            .catch(err => {
+                console.error("Oracle API hatası:", err);
+                setStatusMessage(`Oracle API ile iletişim kurulamadı: ${err.message}`);
+            });
+        }
+    }, [isConfirmed, receipt]); // Bağımlılığı 'isConfirmed' ve 'receipt' olarak değiştir
+    // --- DÜZELTME 3 SONU ---
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!isConnected || !connectedAddress) {
             setStatusMessage("Lütfen önce cüzdanınızı (yeni adresiniz olarak) bağlayın.");
             return;
         }
-        if (!oldAddress || !ethers.isAddress(oldAddress)) {
+        // Düzeltme: 'ethers.isAddress' yerine viem'den 'isAddress' kullanıldı
+        if (!oldAddress || !isAddress(oldAddress)) { 
             setStatusMessage("Lütfen geçerli bir 'Eski Cüzdan Adresi' girin.");
             return;
         }
 
         setStatusMessage("Talep hazırlanıyor...");
 
-        // 1. Kanıt (Proof) oluştur (Şimdilik basit bir string)
+        // --- DÜZELTME 2 (HASHLEME): stringToBytes + keccak256 kullanıldı ---
+        // 'SizeOverflowError' hatasını çözmek için string'i keccak256 ile hash'liyoruz
         const proofMessage = `Link ${oldAddress} to ${connectedAddress}`;
-        const proofHash = bytesToHex(stringToBytes(proofMessage, { size: 32 }));
+        const proofHash = keccak256(stringToBytes(proofMessage)); 
+        // --- DÜZELTME 2 SONU ---
 
-        // 2. Kontratı Çağır (requestLink)
         try {
             writeContract({
                 address: BRIDGE_ADDRESS,
                 abi: BRIDGE_ABI,
                 functionName: 'requestLink',
-                args: [oldAddress, proofHash],
+                args: [oldAddress, proofHash], // Hash'lenmiş 32 byte'lık değeri gönder
                 value: BASE_FEE,
             });
             setStatusMessage("Lütfen cüzdanınızdan işlemi onaylayın...");
@@ -65,7 +111,7 @@ export const RequestForm = () => {
         <div style={{ padding: '20px', maxWidth: '500px', margin: 'auto' }}>
             <h2>İtibar Transferi (RPX) Talebi</h2>
             <p>Bu form, eski cüzdanınızdaki itibarı yeni cüzdanınıza (şu an bağlı olan) bağlamak için kullanılır.</p>
-            
+                
             <form onSubmit={handleSubmit}>
                 <div style={{ marginBottom: '15px' }}>
                     <label>
@@ -80,7 +126,7 @@ export const RequestForm = () => {
                         />
                     </label>
                 </div>
-                
+                    
                 <div style={{ marginBottom: '15px' }}>
                     <label>
                         Yeni Cüzdan Adresi (Mevcut bağlı olan):
@@ -93,7 +139,7 @@ export const RequestForm = () => {
                         />
                     </label>
                 </div>
-                
+                    
                 <button 
                     type="submit" 
                     disabled={!isConnected || isPending || isConfirming}
@@ -111,20 +157,10 @@ export const RequestForm = () => {
                 <div style={{ marginTop: '20px', color: 'green' }}>
                     <p><strong>Talep Başarılı!</strong></p>
                     <p>İşleminiz onaylandı (Tx: {hash}).</p>
-                    <p>Backend Oracle şimdi puanınızı hesaplayacak ve (eğer başarılıysa) NFT'nizi basacaktır.</p>
+                    <p>Oracle puanınızı hesaplıyor...</p>
                     <a href={`https://sepolia.basescan.org/tx/${hash}`} target="_blank" rel="noopener noreferrer">İşlemi Görüntüle</a>
                 </div>
             )}
         </div>
     );
-};
-
-// Ethers.js'in 'isAddress' fonksiyonu React'te çalışmayabilir,
-// viem'in 'isAddress' fonksiyonunu kullanmak daha iyidir ancak şu an import edilmemiş.
-// Geçici bir 'ethers' objesi (gerçekte 'ethers' paketi import edilmedi, bu bir TypeScript sorunu)
-// Bu satırı geçici olarak ekliyoruz:
-const ethers = {
-    isAddress: (address: string) => {
-        return /^0x[a-fA-F0-9]{40}$/.test(address);
-    }
 };

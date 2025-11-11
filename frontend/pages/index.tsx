@@ -1,15 +1,26 @@
 import Head from 'next/head';
-// 'WalletConnect' importunu 'next/dynamic' ile değiştireceğiz
-// import { WalletConnect } from '../components/WalletConnect';
-import { RequestForm } from '../components/RequestForm';
 import dynamic from 'next/dynamic'; // <-- DİNAMİK IMPORT İÇİN EKLENDİ
 
 // --- HİDRASYON HATASI DÜZELTMESİ ---
-// WalletConnect bileşenini SADECE tarayıcıda (client-side) ve SSR olmadan (ssr: false)
-// yüklemesi için 'next/dynamic' kullanıyoruz.
+// Cüzdan kancalarını (wagmi hooks) kullanan TÜM bileşenleri
+// SADECE tarayıcıda (client-side) ve SSR olmadan (ssr: false) yüklüyoruz.
+
+// 1. WalletConnect bileşenini dinamik yükle
 const WalletConnectDynamic = dynamic(
   () => import('../components/WalletConnect').then((mod) => mod.WalletConnect),
-  { ssr: false }
+  { 
+    ssr: false,
+    loading: () => <div style={{height: '38px'}}>Yükleniyor...</div> 
+  }
+);
+
+// 2. RequestForm bileşenini dinamik yükle
+const RequestFormDynamic = dynamic(
+  () => import('../components/RequestForm').then((mod) => mod.RequestForm),
+  { 
+    ssr: false,
+    loading: () => <p>Form yükleniyor...</p>
+  }
 );
 // --- DÜZELTME SONU ---
 
@@ -52,7 +63,9 @@ export default function Home() {
 
         <section style={{ maxWidth: '700px', margin: 'auto' }}>
           <h2>İtibar Transferine Başlayın</h2>
-          <RequestForm />
+          
+          {/* 'RequestForm' yerine 'RequestFormDynamic' kullanıyoruz */}
+          <RequestFormDynamic />
         </section>
 
         <footer style={{ marginTop: '50px', textAlign: 'center', color: '#888' }}>
