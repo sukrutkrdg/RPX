@@ -1,41 +1,70 @@
-// backend/BlockChainAnalyzer/APIClients.js
+import { ethers } from 'ethers';
 
-import { EtherscanProvider, JsonRpcProvider } from "ethers"; // Ethers'ı import ediyoruz
-import axios from "axios";
-import settings from '../../config/settings.json' assert { type: "json" };
-
-// API anahtarları .env dosyasından çekilecektir.
-const ETHERSCAN_API_KEY = process.env.ETHERSCAN_API_KEY; 
-const RPC_URL = process.env.RPC_URL; // Base veya EVM ağının RPC URL'si
-
-// Ethers.js sağlayıcısı
-const provider = new EtherscanProvider("mainnet", ETHERSCAN_API_KEY); 
-
-// Alternatif RPC sağlayıcısı (daha hızlı okuma için)
-// const rpcProvider = new JsonRpcProvider(RPC_URL); 
-
-/**
- * Bir cüzdan adresinin tüm geçmiş işlemlerini çeker.
- * @param {string} address - Sorgulanacak cüzdan adresi.
- * @returns {Array} - İşlem nesneleri dizisi.
- */
-async function fetchTransactionHistory(address) {
-    // ... (function body remains the same) ...
+// API'lerden dönen Tx (işlem) verisi için ortak bir arayüz
+export interface TransactionData {
+    hash: string;
+    from: string;
+    to: string;
+    value: string;
+    timeStamp: string;
+    success: boolean;
 }
 
-/**
- * Cüzdanın bir protokol ile etkileşim geçmişini sorgular
- */
-async function fetchProtocolInteractions(address) {
-    // ... (function body remains the same) ...
-    return {
-        uniqueContracts: 15, 
-        nftCollections: 5    
-    };
+// Hata: Bu class'lar ReputationScorer'da bekleniyordu ama burada yoktu. Şimdi eklendi.
+export class CovalentClient {
+    private apiKey: string;
+    private baseUrl: string = "https://api.covalenthq.com/v1";
+
+    constructor(apiKey: string) {
+        this.apiKey = apiKey;
+        console.log("CovalentClient başlatıldı.");
+    }
+
+    async getTransactions(address: string, chainId: number = 84532): Promise<TransactionData[]> {
+        // Covalent API'sine istek at (Bu kısım Covalent dokümantasyonuna göre doldurulmalı)
+        // Örnek istek:
+        // const url = `${this.baseUrl}/${chainId}/address/${address}/transactions_v2/?key=${this.apiKey}`;
+        // const response = await fetch(url);
+        // const data = await response.json();
+        // return data.items.map(tx => (...));
+        
+        console.log(`CovalentClient: ${address} için işlemler getiriliyor... (Simüle edildi)`);
+        return []; // Şimdilik boş dizi döndür
+    }
 }
 
-export {
-    fetchTransactionHistory,
-    fetchProtocolInteractions,
-    provider
-};
+export class EtherscanClient {
+    private apiKey: string;
+    private baseUrl: string = "https://api-sepolia.basescan.org/api"; // Base Sepolia
+
+    constructor(apiKey: string) {
+        this.apiKey = apiKey;
+        console.log("EtherscanClient başlatıldı.");
+    }
+
+    async getTransactions(address: string): Promise<TransactionData[]> {
+        const url = `${this.baseUrl}?module=account&action=txlist&address=${address}&startblock=0&endblock=99999999&sort=asc&apikey=${this.apiKey}`;
+        
+        try {
+            const response = await fetch(url);
+            const data = await response.json();
+
+            if (data.status === "0") {
+                console.warn(`EtherscanClient: ${address} için işlem bulunamadı veya API hatası: ${data.message}`);
+                return [];
+            }
+
+            return data.result.map((tx: any): TransactionData => ({
+                hash: tx.hash,
+                from: tx.from,
+                to: tx.to,
+                value: tx.value,
+                timeStamp: tx.timeStamp,
+                success: tx.isError === "0",
+            }));
+        } catch (error) {
+            console.error("EtherscanClient Hatası:", error);
+            return [];
+        }
+    }
+}

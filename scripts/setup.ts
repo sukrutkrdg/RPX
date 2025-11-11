@@ -1,56 +1,62 @@
-// scripts/setup.js
-
-import { ethers } from "hardhat";
-import 'dotenv/config'; 
-// JSON importları için Node.js'in 'assert' mekanizmasını kullanıyoruz
-import contractAddresses from '../config/contractAddresses.json' assert { type: "json" };
-import settings from '../config/settings.json' assert { type: "json" };
-
+import { ethers, network } from "hardhat"; // 'network' import edildi
+import * as fs from "fs";
+import * as path from "path";
+// Statik import kaldırıldı, fs ile okuyacağız
 
 async function main() {
-    // 1. Oracle Cüzdanını Tanımlama
-    // ethers.js'ten JsonRpcProvider yerine Hardhat'ın provider'ı kullanılmalı, 
-    // ancak .env kullanıldığı için manuel tanımlama yapıyoruz.
-    const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
-    
-    // Dağıtımı yapan cüzdanın özel anahtarını kullanıyoruz (Owner)
-    const ownerWallet = new ethers.Wallet(process.env.DEPLOYER_PRIVATE_KEY, provider); 
-    
-    // ORACLE'IN KENDİ ADRESİNİ .env'den çek
-    const oracleWallet = new ethers.Wallet(process.env.ORACLE_PRIVATE_KEY, provider); 
-    const oracleAddress = await oracleWallet.getAddress();
-    
-    const bridgeAddress = contractAddresses.ReputationBridge.address;
+  console.log("Configuring contracts...");
 
-    // 2. Bridge Sözleşmesini Tanımlama
-    // Owner olarak hareket edeceğiz
-    const ReputationBridge = await ethers.getContractFactory("ReputationBridge", ownerWallet);
-    const bridgeContract = await ReputationBridge.attach(bridgeAddress);
-    
-    console.log(`--- REP-X Kurulum İşlemi Başlatılıyor ---`);
-    console.log(`Bridge Adresi: ${bridgeAddress}`);
-    console.log(`Yeni Oracle Adresi: ${oracleAddress}`);
+  // 1. Deployer adresini al (Oracle olarak kullanılacak)
+  const [deployer] = await ethers.getSigners();
+  const oracleAddress = deployer.address;
+  console.log(`Deployer (Oracle) address: ${oracleAddress}`);
 
-    // 3. Oracle Adresini Atama (Owner yetkisiyle)
-    // Constructor'da atama yapılmadıysa veya değiştirilecekse bu kullanılır
-    if (await bridgeContract.oracleAddress() !== oracleAddress) { // await eklendi
-        console.log("🛠️ Bridge sözleşmesinde Oracle adresi güncelleniyor...");
-        const tx = await bridgeContract.setOracleAddress(oracleAddress);
-        await tx.wait();
-        console.log(`✅ Oracle Adresi Başarıyla Atandı: ${oracleAddress}`);
-    } else {
-        console.log("✅ Oracle Adresi Zaten Tanımlı.");
-    }
-    
-    // 4. (Opsiyonel) Başarı Ücretini Tanımlama
-    // parseEther'ın kullanımı ethers kütüphanesine bağlıdır, Hardhat'ın global util'inden gelmez.
-    const SUCCESS_FEE_WEI = ethers.parseEther(settings.settings.successFeeEth || "0.05"); // Örn: 0.05 ETH
-    // Not: setSuccessFee fonksiyonunu ReputationBridge.sol'e eklememiz gerekir.
-    
-    console.log("--- Kurulum Tamamlandı. Protokol Aktif. ---");
+  // 2. Network adını dinamik olarak al
+  const networkName = network.name; // "baseSepolia" olmalı
+  console.log(`Configuring for network: ${networkName}`);
+
+  // 3. Adresleri config dosyasından dinamik olarak oku
+  const configPath = path.join(__dirname, "../config/contractAddresses.json");
+  if (!fs.existsSync(configPath)) {
+    throw new Error(`contractAddresses.json bulunamadı. Lütfen önce deploy betiğini çalıştırın.`);
+  }
+  
+  const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+  
+  const nftAddress = config[networkName]?.ReputationNFT;
+  const bridgeAddress = config[networkName]?.ReputationBridge;
+
+  if (!nftAddress || !bridgeAddress) {
+    throw new Error(`config/contractAddresses.json dosyasında '${networkName}' ağı için adresler bulunamadı.`);
+  }
+
+  // 4. Kontratları al
+  const nft = await ethers.getContractAt("ReputationNFT", nftAddress);
+  const bridge = await ethers.getContractAt("ReputationBridge", bridgeAddress);
+  
+  console.log(`ReputationNFT adresi: ${await nft.getAddress()}`);
+  console.log(`ReputationBridge adresi: ${await bridge.getAddress()}`);
+
+  // 5. NFT Kontratına Bridge adresini ayarla
+  console.log(`ReputationNFT (${nftAddress}) bridge adresi olarak ${bridgeAddress} ayarlanıyor...`);
+  const tx1 = await nft.setBridgeContract(bridgeAddress);
+  await tx1.wait();
+  console.log(`...ReputationNFT, bridge adresini (${bridgeAddress}) olarak güncelledi.`);
+
+  // 6. Bridge Kontratına Oracle adresini ayarla
+  console.log(`ReputationBridge (${bridgeAddress}) oracle adresi olarak ${oracleAddress} ayarlanıyor...`);
+  const tx2 = await bridge.setOracleAddress(oracleAddress);
+  await tx2.wait();
+  console.log(`...ReputationBridge, oracle adresini (${oracleAddress}) olarak güncelledi.`);
+
+  console.log("\n--- SETUP COMPLETE ---");
+  console.log("Kontratlar birbirine bağlandı.");
+  console.log("------------------------");
+  console.log("ŞİMDİ 'npm run oracle' ve 'npm run dev' komutlarını ayrı terminallerde çalıştırabilirsin.");
 }
 
 main().catch((error) => {
-    console.error(error);
-    process.exitCode = 1;
+  console.error("\n--- SETUP FAILED ---");
+  console.error(error);
+  process.exitCode = 1;
 });

@@ -16,8 +16,7 @@ contract ReputationNFT is ERC721, Ownable {
     mapping(uint256 => ReputationData) public reputationDatas;
     uint256 private _nextTokenId = 1;
 
-    // ----- DÜZELTME 1: Constructor -----
-    // Deploy script'inin (deployer.address) argümanını kabul etmesi için 'initialOwner' eklendi.
+    // Deploy script'i (deployer.address) argümanını kabul etmesi için 'initialOwner' eklendi.
     constructor(address initialOwner) 
         ERC721("Reputation Bridge NFT", "REP-X") 
         Ownable(initialOwner) // Sahibi 'initialOwner' (yani deployer) olarak ayarla
@@ -55,13 +54,13 @@ contract ReputationNFT is ERC721, Ownable {
     }
 
     function getReputationScore(uint256 tokenId) external view returns (uint256) {
+        // Hata veren '_exists' yerine 'ownerOf' kullanıldı.
         require(ownerOf(tokenId) != address(0), "Token mevcut degil.");
         return reputationDatas[tokenId].score;
     }
 
-    // ----- DÜZELTME 2: tokenURI -----
-    // Hata veren '_exists' yerine 'ownerOf' kullanıldı.
     function tokenURI(uint256 tokenId) public view override returns (string memory) {
+        // Hata veren '_exists' yerine 'ownerOf' kullanıldı.
         require(ownerOf(tokenId) != address(0), "Token mevcut degil.");
         return string(abi.encodePacked("https://metadata.rep-x.io/token/", Strings.toString(tokenId)));
     }

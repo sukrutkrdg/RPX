@@ -1,31 +1,56 @@
-// backend/OracleService/ContractRelayer.js
+import { ethers, Contract } from 'ethers';
 
-import { ethers } from "ethers";
-const BRIDGE_ABI = []; // Buraya ABI içeriği Hardhat compile sonrası kopyalanacak
+export class ContractRelayer {
+    private bridgeContract: Contract;
 
-/**
- * Analiz sonucunu Bridge sözleşmesine geri yazar (setVerificationStatus).
-// ... (function signature remains the same) ...
- */
-async function relayVerificationStatus(oracleWallet, bridgeAddress, oldAddress, status, finalScore) {
-    try {
-        const bridgeContract = new ethers.Contract(bridgeAddress, BRIDGE_ABI, oracleWallet);
+    constructor(bridgeContract: Contract) {
+        this.bridgeContract = bridgeContract;
+        console.log(`ContractRelayer başlatıldı. Kontrat: ${bridgeContract.target}`);
+    }
+
+    /**
+     * Hesaplanan skoru ve doğrulama durumunu akıllı kontrata gönderir.
+     */
+    public async submitVerification(oldAddress: string, status: boolean, finalScore: number): Promise<string> {
+        console.log(`ContractRelayer: setVerificationStatus çağrılıyor... Adres: ${oldAddress}, Durum: ${status}, Skor: ${finalScore}`);
         
-        // setVerificationStatus işlemi: Sadece Oracle'ın çağırabileceği fonksiyon
-        const tx = await bridgeContract.setVerificationStatus(
-            oldAddress, 
-            status, 
-            finalScore
-        );
-        
-        console.log(`[RELAYER] İşlem gönderildi, Hash: ${tx.hash}`);
-        await tx.wait(); // İşlemin onaylanmasını bekle
-        console.log(`[RELAYER] İşlem Onaylandı! Doğrulama durumu zincire yazıldı.`);
+        try {
+            // Kontratın 'setVerificationStatus' fonksiyonunu çağır
+            const tx = await this.bridgeContract.setVerificationStatus(oldAddress, status, finalScore);
+            
+            console.log(`İşlem gönderildi. Tx Hash: ${tx.hash}. Onay bekleniyor...`);
+            await tx.wait(1); // 1 onay bekle
+            
+            console.log(`İşlem onaylandı (Tx: ${tx.hash})`);
+            return tx.hash;
+            
+        } catch (error) {
+            // ----- HATA DÜZELTMESİ BURADA -----
+            // 'error' değişkeninin tipini 'unknown' yerine 'any' olarak varsayabiliriz (daha basit)
+            // veya tip kontrolü yapabiliriz.
+            
+            let errorMessage = "Bilinmeyen bir hata oluştu.";
+            let errorData: any = null;
 
-    } catch (error) {
-        console.error("[RELAYER HATA] setVerificationStatus gönderilemedi:", error.message);
-        throw new Error("Zincir üzerinde doğrulama durumu güncelleme başarısız.");
+            if (error instanceof Error) {
+                errorMessage = error.message;
+            }
+
+            // Ethers.js hataları genellikle 'data' veya 'reason' içerir
+            const ethersError = error as any;
+            if (ethersError.data) {
+                errorData = ethersError.data;
+            } else if (ethersError.reason) {
+                errorMessage = `${errorMessage} (Sebep: ${ethersError.reason})`;
+            }
+
+            console.error("ContractRelayer Hata:", errorMessage);
+            if (errorData) {
+                console.error("Hata Detayları:", errorData);
+            }
+            
+            throw new Error(`Kontrat çağrısı başarısız oldu: ${errorMessage}`);
+            // ----- DÜZELTME SONU -----
+        }
     }
 }
-
-export { relayVerificationStatus };
