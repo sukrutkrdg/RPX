@@ -1,48 +1,51 @@
 import type { AppProps } from 'next/app';
 import { WagmiProvider, createConfig, http } from 'wagmi';
-import { mainnet, base, baseSepolia } from 'wagmi/chains'; // Base ağını kullanacağız
+import { base, baseSepolia } from 'wagmi/chains';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-// import '../styles/globals.css'; // Global CSS dosyası (Önceki adımda devre dışı bırakmıştık)
 import settings from '../../config/settings.json';
 
-// --- React Hooks import edildi ---
+// --- HİDRASYON DÜZELTMESİ (useEffect/useState) ---
 import { useState, useEffect } from 'react';
 
-// --- 1. Zincir ve Transport Tanımlaması ---
-// settings.json'daki targetChainId'ye göre ağı seç
-// Not: Wagmi'nin `baseSepolia` desteği olması lazım, import'a ekledim.
+// --- REACT NATIVE HATA DÜZELTMESİ (connectors) ---
+// Sadece web bağlayıcılarını import et
+import { injected, walletConnect } from '@wagmi/connectors';
+
 const targetChain = settings.targetChainId === 8453 ? base : baseSepolia;
+// WalletConnect'in çalışması için https://cloud.walletconnect.com/ adresinden
+// ücretsiz bir 'projectId' alıp buraya yapıştırmalısın.
+const projectId = process.env.NEXT_PUBLIC_WC_PROJECT_ID || ""; 
+
+if (!projectId) {
+  console.warn("WalletConnect Project ID eksik. QR Kod bağlantısı çalışmayabilir. Lütfen .env.local dosyasına NEXT_PUBLIC_WC_PROJECT_ID ekleyin.");
+}
 
 const config = createConfig({
-  chains: [targetChain, mainnet], // Hedef ağımızı ve mainnet'i ekleyelim
+  chains: [targetChain],
+  // 'connectors' dizisini ekleyerek wagmi'ye sadece bunları kullanmasını söylüyoruz
+  connectors: [
+    injected(), // MetaMask, Brave, vb. tarayıcı cüzdanları
+    walletConnect({ projectId, showQrModal: true, qrModalOptions: { themeMode: "light" } }),
+  ],
   transports: {
     [targetChain.id]: http(),
-    [mainnet.id]: http(),
   },
 });
 
-// --- 2. React Query Client ---
 const queryClient = new QueryClient();
 
-// --- 3. Ana Uygulama Bileşeni ---
 function MyApp({ Component, pageProps }: AppProps) {
-  
-  // ----- HİDRASYON HATASI DÜZELTMESİ -----
+  // --- HİDRASYON DÜZELTMESİ (isClient state'i) ---
   const [isClient, setIsClient] = useState(false);
-
   useEffect(() => {
     // Component mount olduğunda (yani sadece tarayıcıda)
     // state'i true yap.
     setIsClient(true);
   }, []);
-  // ----- DÜZELTME SONU -----
 
   return (
     <>
-      {/* Tüm Wagmi ve Query sağlayıcılarını SADECE 'isClient' true ise (yani tarayıcıda) render et.
-        Sunucuda null (boş) render et.
-        Bu, sunucu ve tarayıcı arasındaki HTML uyuşmazlığını çözer.
-      */}
+      {/* Sayfayı SADECE tarayıcıda (isClient true ise) render et */}
       {isClient ? (
         <WagmiProvider config={config}>
           <QueryClientProvider client={queryClient}>
@@ -50,7 +53,7 @@ function MyApp({ Component, pageProps }: AppProps) {
           </QueryClientProvider>
         </WagmiProvider>
       ) : (
-        null 
+        null // Sunucuda hiçbir şey render etme
       )}
     </>
   );

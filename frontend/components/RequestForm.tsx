@@ -33,7 +33,7 @@ export const RequestForm = () => {
     // 'receipt' eklendi
     const { isLoading: isConfirming, isSuccess: isConfirmed, data: receipt } = useWaitForTransactionReceipt({ hash });
 
-    // --- DÜZELTME 3 (API ÇAĞRISI): Tx onaylandığında Oracle'ı tetikle ---
+    // --- DÜZELTME 3 (EKSİK MANTIK): Tx onaylandığında Oracle'ı tetikle ---
     useEffect(() => {
         // Sadece işlem başarıyla onaylandığında çalış
         if (isConfirmed && receipt && connectedAddress && oldAddress) {
@@ -69,7 +69,7 @@ export const RequestForm = () => {
                 setStatusMessage(`Oracle API ile iletişim kurulamadı: ${err.message}`);
             });
         }
-    }, [isConfirmed, receipt]); // Bağımlılığı 'isConfirmed' ve 'receipt' olarak değiştir
+    }, [isConfirmed, receipt, connectedAddress, oldAddress]); // Bağımlılıklar eklendi
     // --- DÜZELTME 3 SONU ---
 
     const handleSubmit = async (e: React.FormEvent) => {

@@ -1,20 +1,18 @@
 import Head from 'next/head';
 import dynamic from 'next/dynamic'; // <-- DİNAMİK IMPORT İÇİN EKLENDİ
 
-// --- HİDRASYON HATASI DÜZELTMESİ ---
-// Cüzdan kancalarını (wagmi hooks) kullanan TÜM bileşenleri
-// SADECE tarayıcıda (client-side) ve SSR olmadan (ssr: false) yüklüyoruz.
+// --- HİDRASYON HATASI DÜZELTMESİ (TÜM wagmi bileşenleri) ---
+// Hem WalletConnect hem de RequestForm, wagmi hook'larını kullandığı için
+// SADECE tarayıcıda (client-side) ve SSR olmadan (ssr: false) yüklenmelidir.
 
-// 1. WalletConnect bileşenini dinamik yükle
 const WalletConnectDynamic = dynamic(
   () => import('../components/WalletConnect').then((mod) => mod.WalletConnect),
   { 
     ssr: false,
-    loading: () => <div style={{height: '38px'}}>Yükleniyor...</div> 
+    loading: () => <div style={{height: '38px', width: '150px', backgroundColor: '#f0f0f0', borderRadius: '8px'}}></div> 
   }
 );
 
-// 2. RequestForm bileşenini dinamik yükle
 const RequestFormDynamic = dynamic(
   () => import('../components/RequestForm').then((mod) => mod.RequestForm),
   { 
@@ -40,8 +38,6 @@ export default function Home() {
         paddingBottom: '10px' 
       }}>
         <h1 style={{ margin: 0 }}>REP-X İtibar Köprüsü</h1>
-        
-        {/* 'WalletConnect' yerine 'WalletConnectDynamic' kullanıyoruz */}
         <WalletConnectDynamic />
       </header>
 
@@ -63,8 +59,6 @@ export default function Home() {
 
         <section style={{ maxWidth: '700px', margin: 'auto' }}>
           <h2>İtibar Transferine Başlayın</h2>
-          
-          {/* 'RequestForm' yerine 'RequestFormDynamic' kullanıyoruz */}
           <RequestFormDynamic />
         </section>
 
